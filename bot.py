@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 import json
 import ctypes
@@ -96,7 +96,7 @@ BASE_DIR = os.path.dirname(
 # =========================================================
 
 def _version_tuple(version):
-    """將 v1.2.3 / 1.2.3 轉成可比較的版本 tuple。"""
+    """將 v1.2.3 / 1.2.3 轉成可比較的版本 tuple"""
     value = str(version or "").strip().lower()
     if value.startswith("v"):
         value = value[1:]
@@ -113,7 +113,7 @@ def _version_tuple(version):
 
 
 def _get_latest_release():
-    """取得 GitHub 最新正式 Release。"""
+    """取得 GitHub 最新正式 Release"""
     url = (
         f"https://api.github.com/repos/"
         f"{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
@@ -132,7 +132,7 @@ def _get_latest_release():
 
 
 def _download_file(url, destination):
-    """下載檔案到指定路徑。"""
+    """下載檔案到指定路徑"""
     request = urllib.request.Request(
         url,
         headers={
@@ -151,9 +151,9 @@ def _download_file(url, destination):
 
 def _find_release_asset(assets, preferred_names):
     """
-    尋找 Release Asset。
+    尋找 Release Asset
     優先使用指定名稱；若名稱不同，則依 EXE / Updater 類型判斷，
-    避免 GitHub Asset 被命名成 default.exe 時無法更新。
+    避免 GitHub Asset 被命名成 default.exe 時無法更新
     """
     assets = assets or []
 
@@ -178,7 +178,7 @@ def _find_release_asset(assets, preferred_names):
 
 
 class _UpdateController(QObject):
-    """更新控制器：UI 詢問與啟動 Updater 都在 Qt 主執行緒。"""
+    """更新控制器：UI 詢問與啟動 Updater 都在 Qt 主執行緒"""
 
     update_available = Signal(str, object)
     download_finished = Signal(str, str, str)
@@ -270,7 +270,7 @@ class _UpdateController(QObject):
             )
 
             if not exe_asset or not updater_asset:
-                raise RuntimeError("GitHub Release 找不到更新檔案。")
+                raise RuntimeError("GitHub Release 找不到更新檔案")
 
             update_dir = tempfile.mkdtemp(
                 prefix="PhoebeReminder_Update_"
@@ -300,7 +300,7 @@ class _UpdateController(QObject):
                 or not os.path.isfile(updater_exe)
                 or os.path.getsize(updater_exe) <= 0
             ):
-                raise RuntimeError("更新檔案下載失敗或檔案大小為 0。")
+                raise RuntimeError("更新檔案下載失敗或檔案大小為 0")
 
             self.download_finished.emit(
                 self._current_exe,
@@ -332,7 +332,7 @@ class _UpdateController(QObject):
 
         except Exception as exc:
             self._show_update_error(
-                str(exc) or "無法啟動更新程式。"
+                str(exc) or "無法啟動更新程式"
             )
 
     def _show_update_error(self, message):
@@ -349,7 +349,7 @@ class _UpdateController(QObject):
 
 
 def _show_update_question(latest_version, release_notes):
-    """在 Qt 主執行緒顯示更新詢問。"""
+    """在 Qt 主執行緒顯示更新詢問"""
     try:
         from PySide6.QtWidgets import QMessageBox
 
@@ -385,13 +385,13 @@ _UPDATE_CONTROLLER = None
 
 
 def check_for_updates():
-    """保留舊入口，實際更新工作由背景執行緒與主執行緒控制器處理。"""
+    """保留舊入口，實際更新工作由背景執行緒與主執行緒控制器處理"""
     if _UPDATE_CONTROLLER is not None:
         _UPDATE_CONTROLLER.start()
 
 
 def start_update_check():
-    """背景檢查 GitHub Release，不阻塞主 UI。"""
+    """背景檢查 GitHub Release，不阻塞主 UI"""
     if _UPDATE_CONTROLLER is None:
         return
     _UPDATE_CONTROLLER.start()
@@ -401,14 +401,14 @@ _UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
 
 
 def start_hourly_update_check():
-    """每小時檢查一次 GitHub Release。"""
+    """每小時檢查一次 GitHub Release"""
     if _UPDATE_CONTROLLER is None:
         return
     _UPDATE_CONTROLLER.start()
 
 
 def setup_hourly_update_check():
-    """建立每小時自動檢查更新的計時器。"""
+    """建立每小時自動檢查更新的計時器"""
     timer = QTimer()
     timer.timeout.connect(start_hourly_update_check)
     timer.start(_UPDATE_CHECK_INTERVAL_MS)
@@ -443,6 +443,116 @@ CONFIG_FILE = os.path.join(
     APP_DATA_DIR,
     "window_config.json"
 )
+
+
+# =========================================================
+# Windows 開機自動啟動
+# =========================================================
+
+STARTUP_CONFIG_FILE = os.path.join(
+    APP_DATA_DIR,
+    "startup_config.json"
+)
+
+STARTUP_REGISTRY_KEY = (
+    r"Software\Microsoft\Windows\CurrentVersion\Run"
+)
+
+STARTUP_REGISTRY_VALUE = "PhoebeReminder"
+
+
+def load_startup_enabled():
+    try:
+        with open(STARTUP_CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return bool(data.get("enabled", False))
+    except Exception:
+        return False
+
+
+def save_startup_enabled(enabled):
+    temp_file = STARTUP_CONFIG_FILE + ".tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "enabled": bool(enabled),
+                "updated_at": datetime.now().isoformat(timespec="seconds")
+            },
+            f,
+            ensure_ascii=False,
+            indent=4
+        )
+    os.replace(temp_file, STARTUP_CONFIG_FILE)
+
+
+def get_startup_command():
+    if getattr(sys, "frozen", False):
+        executable = os.path.abspath(sys.executable)
+        return f'"{executable}"'
+
+    script_path = os.path.abspath(__file__)
+    executable = os.path.abspath(sys.executable)
+
+    # 使用 pythonw.exe，避免開機時跳出命令提示字元視窗
+    if os.path.basename(executable).lower() == "python.exe":
+        candidate = os.path.join(os.path.dirname(executable), "pythonw.exe")
+        if os.path.isfile(candidate):
+            executable = candidate
+
+    return f'"{executable}" "{script_path}"'
+
+
+def set_windows_startup(enabled):
+    if sys.platform != "win32":
+        raise OSError("開機自動啟動功能僅支援 Windows")
+
+    with winreg.CreateKey(
+        winreg.HKEY_CURRENT_USER,
+        STARTUP_REGISTRY_KEY
+    ) as key:
+        if enabled:
+            winreg.SetValueEx(
+                key,
+                STARTUP_REGISTRY_VALUE,
+                0,
+                winreg.REG_SZ,
+                get_startup_command()
+            )
+        else:
+            try:
+                winreg.DeleteValue(key, STARTUP_REGISTRY_VALUE)
+            except FileNotFoundError:
+                pass
+
+    save_startup_enabled(enabled)
+
+
+def initialize_windows_startup():
+    if sys.platform != "win32":
+        return
+
+    enabled = load_startup_enabled()
+    try:
+        with winreg.CreateKey(
+            winreg.HKEY_CURRENT_USER,
+            STARTUP_REGISTRY_KEY
+        ) as key:
+            if enabled:
+                winreg.SetValueEx(
+                    key,
+                    STARTUP_REGISTRY_VALUE,
+                    0,
+                    winreg.REG_SZ,
+                    get_startup_command()
+                )
+            else:
+                try:
+                    winreg.DeleteValue(key, STARTUP_REGISTRY_VALUE)
+                except FileNotFoundError:
+                    pass
+    except Exception:
+        pass
+
 
 
 # =========================================================
@@ -1099,16 +1209,16 @@ def create_tray_icon():
 def setup_windows_notification_identity():
     """
     建立目前使用者的 Windows AppUserModelID 註冊資訊，
-    讓 Toast 通知中心顯示「菲比提醒」而不是 Windows PowerShell。
+    讓 Toast 通知中心顯示「菲比提醒」而不是 Windows PowerShell
 
     Windows 對未封裝桌面程式的通知需要一個 AUMID；
-    新版 Windows 也支援以 AppUserModelId 註冊應用程式資訊。
+    新版 Windows 也支援以 AppUserModelId 註冊應用程式資訊
     """
     if sys.platform != "win32":
         return
 
     try:
-        # 設定目前 Python / EXE 程序的 AppUserModelID。
+        # 設定目前 Python / EXE 程序的 AppUserModelID
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
             ctypes.c_wchar_p(WINDOWS_AUMID)
         )
@@ -1134,7 +1244,7 @@ def setup_windows_notification_identity():
             )
 
             # 圖示不是通知來源名稱的必要條件；
-            # 有有效圖示時 Windows 會在通知中心使用它。
+            # 有有效圖示時 Windows 會在通知中心使用它
             if os.path.exists(ICON_FILE):
                 winreg.SetValueEx(
                     key,
@@ -1152,7 +1262,7 @@ def show_windows_toast(
     message,
     notification_tag=None
 ):
-    """使用 Windows Runtime Toast，並保留可供之後移除的事件標籤。"""
+    """使用 Windows Runtime Toast，並保留可供之後移除的事件標籤"""
     if sys.platform != "win32":
         return False
 
@@ -1217,7 +1327,7 @@ $notifier.Show($toast)
 
 
 def remove_windows_toast(notification_tag):
-    """從 Windows 通知中心移除指定事件的提醒通知。"""
+    """從 Windows 通知中心移除指定事件的提醒通知"""
     if sys.platform != "win32":
         return False
 
@@ -1969,6 +2079,17 @@ class DailyWidget(
             self.tray_toggle_action
         )
 
+        self.startup_action = QAction(
+            self
+        )
+        self.startup_action.triggered.connect(
+            self.toggle_startup
+        )
+        menu.addAction(
+            self.startup_action
+        )
+        self.refresh_startup_action_text()
+
         menu.addSeparator()
 
         exit_action = QAction(
@@ -1994,6 +2115,40 @@ class DailyWidget(
 
         self.tray.show()
 
+
+    def refresh_startup_action_text(self):
+        """更新系統匣中的開機啟動選單文字"""
+        if hasattr(self, "startup_action"):
+            enabled = load_startup_enabled()
+            self.startup_action.setText(
+                "關閉開機自動啟動" if enabled else "開啟開機自動啟動"
+            )
+
+    def toggle_startup(self):
+        """切換 Windows 登入時是否自動啟動菲比提醒"""
+        enabled = not load_startup_enabled()
+        try:
+            set_windows_startup(enabled)
+            self.refresh_startup_action_text()
+
+            message = (
+                "已開啟開機自動啟動"
+                if enabled
+                else "已關閉開機自動啟動"
+            )
+            self.tray.showMessage(
+                APP_NAME,
+                message,
+                QSystemTrayIcon.MessageIcon.Information,
+                3000
+            )
+        except Exception as exc:
+            self.tray.showMessage(
+                APP_NAME,
+                f"設定開機自動啟動失敗：{exc}",
+                QSystemTrayIcon.MessageIcon.Warning,
+                5000
+            )
 
     # =====================================================
     # 系統匣切換
@@ -2579,7 +2734,7 @@ class DailyWidget(
             )
         )
 
-        # 完成事件後，立即從 Windows 通知中心移除這個事件的提醒。
+        # 完成事件後，立即從 Windows 通知中心移除這個事件的提醒
         if task["completed"]:
             remove_windows_toast(
                 task.get(
@@ -3071,7 +3226,7 @@ class DailyWidget(
         now = datetime.now()
         today = now.date().isoformat()
 
-        # 以分鐘判斷，避免 QTimer 在整分附近剛好跨秒造成漏提醒。
+        # 以分鐘判斷，避免 QTimer 在整分附近剛好跨秒造成漏提醒
         current_minutes = (
             now.hour * 60
             + now.minute
@@ -3092,7 +3247,7 @@ class DailyWidget(
             ):
                 continue
 
-            # 每個事件每天只提醒一次。
+            # 每個事件每天只提醒一次
             if task.get(
                 "last_reminded_date"
             ) == today:
@@ -3118,7 +3273,7 @@ class DailyWidget(
                 + minute
             )
 
-            # 尚未到提醒時間。
+            # 尚未到提醒時間
             if current_minutes < reminder_minutes:
                 continue
 
@@ -3154,9 +3309,9 @@ class DailyWidget(
         title = "菲比提醒你"
         message = f"「{task_name}」尚未完成"
 
-        # Windows 10 / 11：使用真正的 Windows Toast。
+        # Windows 10 / 11：使用真正的 Windows Toast
         # AUMID 已在程式啟動時註冊為「菲比提醒」，
-        # 因此通知中心的來源名稱會顯示「菲比提醒」。
+        # 因此通知中心的來源名稱會顯示「菲比提醒」
         if sys.platform == "win32":
             if show_windows_toast(
                 title,
@@ -3165,7 +3320,7 @@ class DailyWidget(
             ):
                 return
 
-        # 非 Windows 或 Toast 失敗時使用 Qt 系統匣通知作為備援。
+        # 非 Windows 或 Toast 失敗時使用 Qt 系統匣通知作為備援
         try:
             if hasattr(self, "tray"):
                 self.tray.setVisible(True)
@@ -3195,11 +3350,11 @@ class DailyWidget(
 
         pos = event.position().toPoint()
 
-        # 編輯框本身不需要再次處理。
+        # 編輯框本身不需要再次處理
         if self.edit_box is not None:
             return
 
-        # 上方按鈕與縮放區域不視為事件名稱。
+        # 上方按鈕與縮放區域不視為事件名稱
         if (
             self.get_add_button_rect().contains(pos)
             or
@@ -3213,7 +3368,7 @@ class DailyWidget(
         if index < 0:
             return
 
-        # 提醒模式下：時間與右側開關區域不進入文字編輯。
+        # 提醒模式下：時間與右側開關區域不進入文字編輯
         if self.reminder_mode:
             if (
                 self.get_reminder_time_rect(index).contains(pos)
@@ -3225,7 +3380,7 @@ class DailyWidget(
             text_left = REMINDER_TIME_WIDTH + 17
             text_right = self.width() - 90
         else:
-            # 一般模式下右側 72px 是勾選區，不進入文字編輯。
+            # 一般模式下右側 72px 是勾選區，不進入文字編輯
             text_left = TASK_TEXT_X
             text_right = self.width() - CHECKBOX_HIT_WIDTH
 
@@ -3334,7 +3489,7 @@ class DailyWidget(
             ):
 
                 # 點擊編輯框外：儲存後離開編輯模式，
-                # 並繼續處理這次點擊。
+                # 並繼續處理這次點擊
                 self.close_edit(
                     save=True
                 )
@@ -3986,7 +4141,7 @@ class DailyWidget(
         
         # 沒有選取事件時通常不用處理，
         # 但編輯框／新增輸入框存在時仍必須監聽，
-        # 才能在點擊其他程式、桌布或工作列時自動關閉。
+        # 才能在點擊其他程式、桌布或工作列時自動關閉
         if (
             self.selected_index < 0
             and self.edit_box is None
@@ -5097,8 +5252,9 @@ class DailyWidget(
 if __name__ == "__main__":
 
     # 必須在建立 UI 前設定 Windows AppUserModelID，
-    # 讓通知來源正確顯示為「菲比提醒」。
+    # 讓通知來源正確顯示為「菲比提醒」
     setup_windows_notification_identity()
+    initialize_windows_startup()
 
     app = QApplication(
         sys.argv
