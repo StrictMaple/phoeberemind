@@ -77,7 +77,7 @@ if sys.platform == "win32":
 # =========================================================
 
 APP_NAME = "菲比提醒"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 GITHUB_OWNER = "StrictMaple"
 GITHUB_REPO = "phoeberemind"
